@@ -13,6 +13,8 @@ class Gender(db.Model, IDto):
 
     trainers = relationship("Trainer", back_populates="gender_info")
 
+    employee = db.relationship("Employee", back_populates="gender")
+
     def put_into_dto(self) -> Dict[str, Any]:
         return {"id": self.id, "name": self.name}
 
