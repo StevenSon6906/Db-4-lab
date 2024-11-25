@@ -1,6 +1,5 @@
-# GenderController.py
 from typing import List
-from my_project.auth.dao.orders.GenderDao import GenderDAO
+from my_project.auth.dao.orders.GenderDAO import GenderDAO
 from my_project.auth.domain.orders.Gender import Gender
 
 class GenderController:
@@ -20,6 +19,3 @@ class GenderController:
 
     def delete(self, gender_id: int) -> None:
         self._dao.delete(gender_id)
-
-    def find_by_name(self, name: str) -> List[Gender]:
-        return self._dao.find_by_name(name)

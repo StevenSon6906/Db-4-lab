@@ -26,7 +26,7 @@ db = SQLAlchemy()
 
 todos = {}
 
-
+#rom
 def create_app(app_config: Dict[str, Any], additional_config: Dict[str, Any]) -> Flask:
     """
     Creates Flask application
