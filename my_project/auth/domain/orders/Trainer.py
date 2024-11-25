@@ -12,10 +12,10 @@ class Trainer(db.Model, IDto):
     last_name = db.Column(db.String(100), nullable=False)
     email = db.Column(db.String(255), nullable=False, unique=True)
     phone = db.Column(db.String(15))
-    gender = db.Column(db.Integer, db.ForeignKey('gender.id'))  # Foreign key column
+    gender = db.Column(db.Integer)  # Foreign key column
 
     # Relationship with Gender, distinct from gender_id column
-    gender_info = db.relationship('Gender', back_populates="trainers")
+    # gender_info = db.relationship('Gender', back_populates="trainers")
 
     def put_into_dto(self) -> Dict[str, Any]:
         return {

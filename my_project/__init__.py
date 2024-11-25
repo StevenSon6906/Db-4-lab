@@ -42,9 +42,137 @@ def create_app(app_config: Dict[str, Any], additional_config: Dict[str, Any]) ->
     _init_db(app)
     register_routes(app)
     _init_swagger(app)
+    _init_trigger(app)
+
+    _init_programs(app)
+    _init_program_exercise(app, 1,2, 10)
+    _init_procedures(app)
+    _init_function(app)
+    add_program_log(app, visitor_id=1, exercise_id=2, log_date="2024-11-25", unit="reps")
 
     return app
 
+#C
+def _init_programs(app: Flask):
+    with app.app_context():
+        for i in range(3, 13):
+            db.session.execute(
+                """
+                INSERT IGNORE INTO programs (id, name, description)
+                VALUES (:p_id, :p_name, :p_description)
+                """,
+                {
+                    'p_id': i,
+                    'p_name': f'Program {i}',
+                    'p_description': f'This is the description for Program {i}'
+                }
+            )
+        db.session.commit()
+
+#A
+def _init_program_exercise(app: Flask, program_id: int, exercise_id: int, target_value: int) -> None:
+    with app.app_context():
+        db.session.execute(
+            """
+            INSERT INTO program_exercises (program_id, exercise_id, target_value)
+            VALUES (:program_id, :exercise_id, :target_value)
+            """,
+            {
+                'program_id': program_id,
+                'exercise_id': exercise_id,
+                'target_value': target_value
+            }
+        )
+        db.session.commit()
+
+#B
+def _init_procedures(app: Flask) -> None:
+    with app.app_context():
+        db.session.execute('''
+            DROP PROCEDURE IF EXISTS AddProgramLog;
+            CREATE PROCEDURE AddProgramLog(
+                IN p_visitor_id INT,
+                IN p_exercise_id INT,
+                IN p_log_date DATE,
+                IN p_unit VARCHAR(50)
+            )
+            BEGIN
+                INSERT INTO programs_logs (visitor_id, exercise_id, log_date, unit)
+                VALUES (p_visitor_id, p_exercise_id, p_log_date, p_unit);
+            END;
+        ''')
+        db.session.commit()
+
+def add_program_log(app: Flask, visitor_id: int, exercise_id: int, log_date: str, unit: str) -> None:
+    with app.app_context():
+        db.session.execute(
+            "CALL AddProgramLog(:visitor_id, :exercise_id, :log_date, :unit)",
+            {
+                'visitor_id': visitor_id,
+                'exercise_id': exercise_id,
+                'log_date': log_date,
+                'unit': unit
+            }
+        )
+        db.session.commit()
+
+#D
+def _init_function(app: Flask) -> None:
+    with app.app_context():
+        db.session.execute('''
+        DROP FUNCTION IF EXISTS MaxTargetValue;
+        CREATE FUNCTION MaxTargetValue() 
+        RETURNS INTEGER
+        DETERMINISTIC
+        BEGIN
+            DECLARE max_value INTEGER;
+            SELECT MAX(target_value) INTO max_value 
+            FROM program_exercises;
+            RETURN max_value;
+        END;
+        ''')
+        db.session.commit()
+        result = db.session.execute('SELECT MaxTargetValue()').scalar()
+        print(f"The maximum target value is {result}")
+
+#1
+def _init_trigger(app: Flask) -> None:
+    with app.app_context():
+        # Your database or other app-dependent operations
+        db.session.execute('''
+        DROP TRIGGER IF EXISTS trigger_gender;
+        CREATE TRIGGER trigger_gender
+        BEFORE INSERT ON trainers
+        FOR EACH ROW
+        BEGIN
+            IF NEW.Id < 0 THEN
+                SIGNAL SQLSTATE '45000'
+                SET MESSAGE_TEXT = 'Primary key cannot be negative';
+            END IF;
+            IF NOT EXISTS (SELECT 1 FROM gender WHERE gender.Id = NEW.gender) THEN
+                SIGNAL SQLSTATE '45000'
+                SET MESSAGE_TEXT = 'No such gender exist';
+            END IF;
+        END;
+        ''')
+        db.session.execute('''
+                DROP TRIGGER IF EXISTS trigger_gender_upd;
+                CREATE TRIGGER trigger_gender_upd
+                BEFORE UPDATE ON trainers
+                FOR EACH ROW
+                BEGIN
+                    IF NEW.Id < 0 THEN
+                        SIGNAL SQLSTATE '45000'
+                        SET MESSAGE_TEXT = 'Primary key cannot be negative';
+                    END IF;
+                    IF NOT EXISTS (SELECT 1 FROM gender WHERE gender.Id = NEW.gender) THEN
+                        SIGNAL SQLSTATE '45000'
+                        SET MESSAGE_TEXT = 'No such gender exist';
+                    END IF;
+                END;
+                ''')
+        
+        db.session.commit()
 
 
 def _init_swagger(app: Flask) -> None:
