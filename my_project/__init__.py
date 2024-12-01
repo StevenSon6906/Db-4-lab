@@ -1,9 +1,3 @@
-"""
-2022
-apavelchak@gmail.com
-© Andrii Pavelchak
-"""
-
 import os
 from http import HTTPStatus
 import secrets
@@ -15,6 +9,7 @@ from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy_utils import database_exists, create_database
 
 from my_project.auth.route import register_routes
+from sqlalchemy import text
 
 SECRET_KEY = "SECRET_KEY"
 SQLALCHEMY_DATABASE_URI = "SQLALCHEMY_DATABASE_URI"
@@ -28,12 +23,6 @@ todos = {}
 
 #rom
 def create_app(app_config: Dict[str, Any], additional_config: Dict[str, Any]) -> Flask:
-    """
-    Creates Flask application
-    :param app_config: Flask configuration
-    :param additional_config: additional configuration
-    :return: Flask application object
-    """
     _process_input_config(app_config, additional_config)
     app = Flask(__name__)
     app.config["SECRET_KEY"] = secrets.token_hex(16)
@@ -43,33 +32,47 @@ def create_app(app_config: Dict[str, Any], additional_config: Dict[str, Any]) ->
     register_routes(app)
     _init_swagger(app)
     _init_trigger(app)
-
-    _init_programs(app)
-    _init_program_exercise(app, 1,2, 10)
-    _init_procedures(app)
     _init_function(app)
-    add_program_log(app, visitor_id=1, exercise_id=2, log_date="2024-11-25", unit="reps")
 
+    #_init_programs(app)
+    # _init_procedures(app)
+    add_program_log(app, visitor_id=2, exercise_id=1, log_date="2024-10-25", unit="reps")
+
+    # _do_cursor_task(app)
+
+    _init_program_exercise(app, 1,2, 10)
     return app
 
-#C
+def _do_cursor_task(app:Flask):
+    with open("cursor.sql", "r") as file:
+        sql_script = file.read()
+    with app.app_context() as connection:
+        db.session.execute(text(sql_script))
+        print("SQL script executed successfully.")
+
+
+#C-пакет-зроблено
 def _init_programs(app: Flask):
     with app.app_context():
-        for i in range(3, 13):
-            db.session.execute(
-                """
-                INSERT IGNORE INTO programs (id, name, description)
-                VALUES (:p_id, :p_name, :p_description)
-                """,
-                {
-                    'p_id': i,
-                    'p_name': f'Program {i}',
-                    'p_description': f'This is the description for Program {i}'
-                }
-            )
+        db.session.execute(
+            """
+DROP PROCEDURE IF EXISTS insert_programs;
+CREATE PROCEDURE insert_programs()
+BEGIN
+    DECLARE i INT DEFAULT 3;
+
+    WHILE i < 13 DO
+        INSERT IGNORE INTO programs (id, name, description)
+        VALUES (i, CONCAT('Program ', i), CONCAT('This is the description for Program ', i));
+        SET i = i + 1;
+    END WHILE;
+END;
+            """
+        )
+        db.session.execute("CALL insert_programs();")
         db.session.commit()
 
-#A
+#A-парамт
 def _init_program_exercise(app: Flask, program_id: int, exercise_id: int, target_value: int) -> None:
     with app.app_context():
         db.session.execute(
@@ -85,11 +88,11 @@ def _init_program_exercise(app: Flask, program_id: int, exercise_id: int, target
         )
         db.session.commit()
 
-#B
+#B-M:M-зроблено
 def _init_procedures(app: Flask) -> None:
     with app.app_context():
         db.session.execute('''
-            DROP PROCEDURE IF EXISTS AddProgramLog;
+            DROP PROCEDURE IF EXISTS AddProgramLog;_
             CREATE PROCEDURE AddProgramLog(
                 IN p_visitor_id INT,
                 IN p_exercise_id INT,
@@ -116,7 +119,7 @@ def add_program_log(app: Flask, visitor_id: int, exercise_id: int, log_date: str
         )
         db.session.commit()
 
-#D
+#D - МAX - готово
 def _init_function(app: Flask) -> None:
     with app.app_context():
         db.session.execute('''
@@ -138,7 +141,6 @@ def _init_function(app: Flask) -> None:
 #1
 def _init_trigger(app: Flask) -> None:
     with app.app_context():
-        # Your database or other app-dependent operations
         db.session.execute('''
         DROP TRIGGER IF EXISTS trigger_gender;
         CREATE TRIGGER trigger_gender
@@ -171,7 +173,43 @@ def _init_trigger(app: Flask) -> None:
                     END IF;
                 END;
                 ''')
-        
+        #меньше 6 буков
+        db.session.execute('''
+        DROP TRIGGER IF EXISTS program_limiter;
+        CREATE TRIGGER program_limiter
+        BEFORE UPDATE ON programs 
+        FOR EACH ROW
+        BEGIN
+            IF CHAR_LENGTH(NEW.description) < 6 THEN
+                SIGNAL SQLSTATE '45000'
+                SET MESSAGE_TEXT = 'Thanos skazav that award description chinne more that 6 characters';
+            END IF;
+        END;
+        ''')
+        #не модифікувати
+        db.session.execute('''
+        DROP TRIGGER IF EXISTS gender_mod;
+        CREATE TRIGGER gender_mod
+        BEFORE UPDATE ON gender 
+        FOR EACH ROW
+        BEGIN                              
+            SIGNAL SQLSTATE '45000'
+            SET MESSAGE_TEXT = 'Lushe dva genderu isnue :) ';
+        END;
+        ''')
+        #дубль О
+        db.session.execute('''
+        DROP TRIGGER IF EXISTS zero_trigger;
+        CREATE TRIGGER zero_trigger
+        BEFORE UPDATE ON visitors 
+        FOR EACH ROW
+        BEGIN
+            IF RIGHT(NEW.phone, 2) = '00' THEN
+                SIGNAL SQLSTATE '45000'
+                SET MESSAGE_TEXT = 'Phone number cannot end with two zeros';
+            END IF;
+        END;
+        ''')
         db.session.commit()
 
 
